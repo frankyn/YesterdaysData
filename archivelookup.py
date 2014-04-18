@@ -295,7 +295,8 @@ for i in range(1, 5):
 while ( len(unvisited) > 0 ):
 	nextUrl = unvisited.pop()
 	res = run(conn,nextUrl,visited)
-	if len(res)>1:
+	
+	if res!=0 and len(res)>1:
 		unvisited = unvisited + res[1]
 
 conn.close()
