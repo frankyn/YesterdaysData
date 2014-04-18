@@ -67,7 +67,7 @@ def extractPrevUrl ( url ):
 
 		html = archiveres.read()
 		status = 200
-		print url
+		#print url
 	
 	offset = html.find('<!-- NEXT/PREV CAPTURE NAV AND DAY OF MONTH INDICATOR -->')
 	offset = html.find('a href="',offset)
@@ -146,6 +146,41 @@ def extractSpecificWords ( rawhtml , words , specific ):
 			words[x] = wlen
 	return words
 
+# Extract specific FACEBOOK URLS, likes, pages, content.
+# def extractSpecificURLS ( rawhtml , specific ):
+# 	offset = 0
+# 	for url in specific:
+# 		#try and find specific url
+# 		offset = rawhtml.find(url,offset)
+# 		if offset!= -1:
+# 			end = rawhtml.find('"' , offset )
+# 			end2 = rawhtml.find('\'', offset )
+# 			if end != -1 and end < 100:
+
+# 			else:
+
+
+# Extract all foreign urls going to pages not associated with parent site.
+def extractForeignURLS ( extractedURLS , uniqueCheck , lookup_url ):
+	# We already extract all urls per page so we will just extract sites that aren't the following:
+		# lookup_url
+	foreignURLS = {}
+	for x in extractedURLS:
+		if x.find(lookup_url)==-1:
+			# We just want the url WebArchive is trying to access.
+			x = x.replace('http://web.archive.org/web/','') # remove webarchive url.
+			offset = x.find('http') 
+			if offset != -1:
+				x = x[offset:]
+				if x.find('archive.org')==-1:
+					# Let track only unique urls to a foreign domain
+					if uniqueCheck.get(x,0) == 0:
+						uniqueCheck[x] = 1
+						foreignURLS[domainOnly(x)] = foreignURLS.get(x,0) + 1
+	#print foreignURLS
+	return [foreignURLS,uniqueCheck]
+
+
 # Extract all urls in the html page
 def extractURLS ( html , baseurl ):
 	next_urls = []
@@ -222,7 +257,8 @@ def checkVisited(url,visited):
 
 	return [seen,visited]
 
-def run ( conn , url , visited ):
+
+def run ( conn , url , visited , unique_foreign_urls ):
 	if url.find(sys.argv[1]) == -1 or url.find("web.archive.org") == -1 or url.find("http://web.archive.org/save/") != -1:
 	#	print 'outbounds'
 		return 0
@@ -255,15 +291,23 @@ def run ( conn , url , visited ):
 	rawhtml = res[2]
 	
 	urls = extractURLS(rawhtml,"http://web.archive.org/")
-	
+	res = extractForeignURLS ( urls , unique_foreign_urls, sys.argv[1] )
+	foreignurls = res[0]
+	unique_foreign_urls = res[1]
+
 	words = findWords(rawhtml.lower(),{},specific)
+	storeddata = foreignurls
+
 	for x in words:
+		storeddata[x] = words[x]
 		totalout = totalout + words[x]
+
+	#print json.dumps(storeddata)
 	# CacheURL and make sure we don't traverse it again later
 	
 	if ( timestamp.find('.') == -1 and len(rawhtml) > 0 ):
-		if len(words) > 0:
-			cacheURL ( conn , url , timestamp , json.dumps(words), base64.b64encode(rawhtml) )
+		if len(storeddata) > 0:
+			cacheURL ( conn , url , timestamp , json.dumps(storeddata), base64.b64encode(rawhtml) )
 	
 #	except:
 #		print 'Error processing: ' + url
@@ -274,9 +318,10 @@ def run ( conn , url , visited ):
 	#	print y
 	#	print '-----'
 	#	run(y)
-	return [totalout,urls]
+	return [totalout,urls,unique_foreign_urls]
 
 visited = {}
+unique_foreign_urls = {}
 totalword = 0
 unvisited = []
 # Start MySQL Connection
@@ -294,9 +339,10 @@ for i in range(1, 5):
 
 while ( len(unvisited) > 0 ):
 	nextUrl = unvisited.pop()
-	res = run(conn,nextUrl,visited)
-	
+	res = run(conn,nextUrl,visited,unique_foreign_urls)
+
 	if res!=0 and len(res)>1:
 		unvisited = unvisited + res[1]
+		unique_foreign_urls = res[2]
 
 conn.close()
