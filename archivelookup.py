@@ -50,13 +50,25 @@ def requestOnly ( url ):
 
 # Extract Next URL after current webarchive URL
 def extractPrevUrl ( url ):
+	html = ""
+	status = 0
 	# Open connection up to the Wayback Machine
-	archiveconn = httplib.HTTPConnection(domainOnly(url), 80)
-	archiveconn.request("GET", '/'+requestOnly(url))
-	archiveres = archiveconn.getresponse()
+	while status == 0:
+		# Open connection up to the Wayback Machine
+		archiveconn = httplib.HTTPConnection(domainOnly(url), 80)
+		archiveconn.request("GET", '/'+requestOnly(url))
+		archiveres = archiveconn.getresponse()
+		#raw html page
+
+		if archiveres.status in (301,302,):
+			#redirect to new location
+			url = 'http://web.archive.org' + archiveres.getheader('location', '')
+			continue
+
+		html = archiveres.read()
+		status = 200
+		print url
 	
-	#raw html page
-	html = archiveres.read()
 	offset = html.find('<!-- NEXT/PREV CAPTURE NAV AND DAY OF MONTH INDICATOR -->')
 	offset = html.find('a href="',offset)
 	offset = offset +len('a href="')
@@ -136,7 +148,7 @@ def extractSpecificWords ( rawhtml , words , specific ):
 
 # Extract all urls in the html page
 def extractURLS ( html , baseurl ):
-	next_urls = {}
+	next_urls = []
 	offset = html.find('<a href=')
 	lastoffset = -1;
 	#print baseurl
@@ -165,10 +177,7 @@ def extractURLS ( html , baseurl ):
 			url = url.replace('#','')
 
 		#print url
-		#add url to known urls and increment how many times we've seen it.
-		ulen = next_urls.get(url,0)
-		ulen = ulen + 1
-		next_urls[url] = ulen
+		next_urls.append(url)
 
 	return next_urls
 
@@ -255,9 +264,6 @@ def run ( conn , url , visited ):
 	if ( timestamp.find('.') == -1 and len(rawhtml) > 0 ):
 		if len(words) > 0:
 			cacheURL ( conn , url , timestamp , json.dumps(words), base64.b64encode(rawhtml) )
-		for x in urls:
-			totalout = totalout + run(conn,x,visited)
-
 	
 #	except:
 #		print 'Error processing: ' + url
@@ -268,21 +274,28 @@ def run ( conn , url , visited ):
 	#	print y
 	#	print '-----'
 	#	run(y)
-	return totalout
+	return [totalout,urls]
 
-globalruns = 100
 visited = {}
 totalword = 0
-
+unvisited = []
 # Start MySQL Connection
 
 conn = mysql.connector.connect(host='127.0.0.1', port=3306, user='root', passwd='blue23', db='bigdata')
 
+#populate unvisited first
+prevUrl = ""
+for i in range(1, 5):
+	url = getUrl(sys.argv[1] , i)
+	if prevUrl == url:
+		break; #started getting duplicates.
+	prevUrl = url
+	unvisited.append(url)
 
-for x in range(0,globalruns):	
-	totalword = totalword + run(conn,getUrl(sys.argv[1] , x),visited)
-
-print totalword
-
+while ( len(unvisited) > 0 ):
+	nextUrl = unvisited.pop()
+	res = run(conn,nextUrl,visited)
+	if len(res)>1:
+		unvisited = unvisited + res[1]
 
 conn.close()
