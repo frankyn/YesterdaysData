@@ -311,47 +311,48 @@ def run ( conn , url , visited , unique_foreign_urls ):
 
 
 	visited[url] = 1
-	print 'Run on: ' + url
+	#print 'Run on: ' + url
 
 	words = {}
 	specific = ['facebook']
 	totalout = 0
 	timestamp = extractTimestamp(url)
 	
-	#try:
-	res = getHTML(url)
+	try:
+		res = getHTML(url)
 
-	# check status :D
-	# Not found or can't continue through this path
-	# kill this call
-	if res[0] in (404,):
+		# check status :D
+		# Not found or can't continue through this path
+		# kill this call
+		if res[0] in (404,):
+			return 0
+
+		url = res[1]
+		rawhtml = res[2]
+		
+		urls = extractURLS2(rawhtml,"http://web.archive.org/")
+		#extractURLS2(rawhtml,"http://web.archive.org/")
+		res = extractForeignURLS( urls , unique_foreign_urls, sys.argv[1] )
+		foreignurls = res[0]
+		unique_foreign_urls = res[1]
+
+		#words = findWords(rawhtml.lower(),{},specific)
+		storeddata = foreignurls
+
+		#for x in words:
+		#	storeddata[x] = words[x]
+		#	totalout = totalout + words[x]
+
+		#print json.dumps(storeddata)
+		# CacheURL and make sure we don't traverse it again later
+		
+		if ( timestamp.find('.') == -1 and len(rawhtml) > 0 ):
+			if len(storeddata) > 0:
+				cacheURL ( conn , url , timestamp , json.dumps(storeddata) , "" )
+		
+	except:
+		print 'Error processing: ' + url
 		return 0
-
-	url = res[1]
-	rawhtml = res[2]
-	
-	urls = extractURLS2(rawhtml,"http://web.archive.org/")
-	#extractURLS2(rawhtml,"http://web.archive.org/")
-	res = extractForeignURLS( urls , unique_foreign_urls, sys.argv[1] )
-	foreignurls = res[0]
-	unique_foreign_urls = res[1]
-
-	#words = findWords(rawhtml.lower(),{},specific)
-	storeddata = foreignurls
-
-	#for x in words:
-	#	storeddata[x] = words[x]
-	#	totalout = totalout + words[x]
-
-	#print json.dumps(storeddata)
-	# CacheURL and make sure we don't traverse it again later
-	
-	if ( timestamp.find('.') == -1 and len(rawhtml) > 0 ):
-		if len(storeddata) > 0:
-			cacheURL ( conn , url , timestamp , json.dumps(storeddata) , "" )
-	
-#	except:
-#		print 'Error processing: ' + url
 
 	#print urls2
 	#find different urls to do next
