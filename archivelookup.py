@@ -332,16 +332,16 @@ def run ( conn , url , visited , unique_foreign_urls ):
 	
 	urls = extractURLS2(rawhtml,"http://web.archive.org/")
 	#extractURLS2(rawhtml,"http://web.archive.org/")
-	res = extractForeignURLS ( urls , unique_foreign_urls, sys.argv[1] )
+	res = extractForeignURLS( urls , unique_foreign_urls, sys.argv[1] )
 	foreignurls = res[0]
 	unique_foreign_urls = res[1]
 
-	words = findWords(rawhtml.lower(),{},specific)
+	#words = findWords(rawhtml.lower(),{},specific)
 	storeddata = foreignurls
 
-	for x in words:
-		storeddata[x] = words[x]
-		totalout = totalout + words[x]
+	#for x in words:
+	#	storeddata[x] = words[x]
+	#	totalout = totalout + words[x]
 
 	#print json.dumps(storeddata)
 	# CacheURL and make sure we don't traverse it again later
