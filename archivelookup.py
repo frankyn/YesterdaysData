@@ -166,18 +166,21 @@ def extractForeignURLS ( extractedURLS , uniqueCheck , lookup_url ):
 		# lookup_url
 	foreignURLS = {}
 	for x in extractedURLS:
-		if x.find(lookup_url)==-1:
+		offset = x.replace('http://'+domainOnly(x),'').find('http')
+		x = x.replace('http://'+domainOnly(x),'')[offset:]
+		if domainOnly(x).find(lookup_url) == -1:
 			# We just want the url WebArchive is trying to access.
 			x = x.replace('http://web.archive.org/web/','') # remove webarchive url.
 			offset = x.find('http') 
 			if offset != -1:
 				x = x[offset:]
-				if x.find('archive.org')==-1:
+				check = lookup_url.split('.')
+
+				if x.find('archive.org')==-1 and domainOnly(x).find(check[0]) == -1:
 					# Let track only unique urls to a foreign domain
 					if uniqueCheck.get(x,0) == 0:
 						uniqueCheck[x] = 1
 						foreignURLS[domainOnly(x)] = foreignURLS.get(x,0) + 1
-	#print foreignURLS
 	return [foreignURLS,uniqueCheck]
 
 
@@ -215,6 +218,43 @@ def extractURLS ( html , baseurl ):
 		next_urls.append(url)
 
 	return next_urls
+
+def extractURLS2( html, baseurl ):
+	next_urls = []
+	offset = html.find('href=')
+	lastoffset = -1;
+	
+	#print baseurl
+	while offset != -1 and offset > lastoffset:
+
+		end_type = html[offset+len('href='):offset+len('href=')+1] # " or a '
+
+		url = html[offset+len('href=')+1:html.find(end_type,offset+len('href=')+1)]
+		
+		#print url
+		#increment offset
+		lastoffset = offset+len('href=')
+		offset = offset+len('href=')+1
+		offset = html.find('href=',offset)
+		
+		#check for outlyers
+		if url.find('javascript') != -1:
+			continue
+		
+
+		#no domain found pad url with baseurl
+		#print url
+		#print domainOnly(url)
+		if len(domainOnly(url)) == 0:
+			url = baseurl + url[1:]
+			url = url.replace('#','')
+
+		#print url
+		next_urls.append(url)
+
+	
+	return next_urls
+
 
 def getHTML ( url ):
 	status = 0
@@ -290,7 +330,8 @@ def run ( conn , url , visited , unique_foreign_urls ):
 	url = res[1]
 	rawhtml = res[2]
 	
-	urls = extractURLS(rawhtml,"http://web.archive.org/")
+	urls = extractURLS2(rawhtml,"http://web.archive.org/")
+	#extractURLS2(rawhtml,"http://web.archive.org/")
 	res = extractForeignURLS ( urls , unique_foreign_urls, sys.argv[1] )
 	foreignurls = res[0]
 	unique_foreign_urls = res[1]
@@ -307,7 +348,7 @@ def run ( conn , url , visited , unique_foreign_urls ):
 	
 	if ( timestamp.find('.') == -1 and len(rawhtml) > 0 ):
 		if len(storeddata) > 0:
-			cacheURL ( conn , url , timestamp , json.dumps(storeddata), base64.b64encode(rawhtml) )
+			cacheURL ( conn , url , timestamp , json.dumps(storeddata) , "" )
 	
 #	except:
 #		print 'Error processing: ' + url
@@ -335,7 +376,7 @@ for i in range(1, 5):
 	if prevUrl == url:
 		break; #started getting duplicates.
 	prevUrl = url
-	unvisited.append(url)
+ 	unvisited.append(url)
 
 while ( len(unvisited) > 0 ):
 	nextUrl = unvisited.pop()
